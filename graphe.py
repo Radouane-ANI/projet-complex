@@ -93,6 +93,20 @@ class Graphe:
         s = self._V[self._it]
         self._it += 1
         return s
+        
+    def generation(self,n,p):
+        G = Graphe()
+        G._V = [i for i in range(n)]
+        for i in range(n):
+            for j in range(i,n):
+                if i not in G._E:
+                    G._E[i] = []
+                if i==j:
+                    continue
+                if random.random() <= p:
+                    G._E[i].append(j)
+        return G
+
 
 
 G = Graphe([], {}, "exempleinstance.txt")
