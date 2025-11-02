@@ -246,11 +246,57 @@ def algo_branchement(G):
     return C
 
 
+def est_couverture_valide(G, C):
+    """Vérifie que C est bien une couverture de G"""
+    for sommet in G._E:
+        for voisin in G._E[sommet]:
+            if sommet not in C and voisin not in C:
+                return False
+    return True
+
+
 if __name__ == '__main__':
     N_MAX = 500
     PROBABILITE_ARETE = 0.1
     NOMBRE_INSTANCES = 10
 
+
+    """  Test avec fichier couplage et glouton :
+    G = Graphe(fic="exempleinstance.txt")
+    print("Graphe chargé:", G)
+    print("Couplage:", algo_couplage(G))
+    print("Glouton:", algo_glouton(G)) """
+
+
+    """G = Graphe.generation(10, 0.3)
+    print("Graphe",G)
+    print("Couplage:", algo_couplage(G))
+    print("Glouton:", algo_glouton(G)) """
+    
+
+    """
     # comparer_algos_naifs(N_MAX, PROBABILITE_ARETE, NOMBRE_INSTANCES)
     G = Graphe(fic="exempleinstance.txt")
     print(algo_branchement(G))
+    """
+
+    
+    G = Graphe(fic="exempleinstance.txt")
+    print("Graphe",G)
+    for s, d in zip(G._V, G.degresTousSommets()):
+        print(f"Sommet {s} : degré {d}")
+    sol = algo_glouton(G)
+    print("Glouton",sol)
+    sol_c = algo_couplage(G)
+    print("Couplage",sol_c)
+    sol_branch = algo_branchement(G)
+    print("Branchement",sol_branch)
+    print("Solution valide glouton ?", est_couverture_valide(G, sol))
+    print("Solution valide couplage ?", est_couverture_valide(G, sol_c))
+    print("Solution valide branchement ?", est_couverture_valide(G, sol_branch))
+
+
+
+
+
+    
