@@ -1,0 +1,53 @@
+def algo_branchement_bornes(G, meilleure_sol=None):
+    """
+    Algorithme de branchement avec élagage par bornes
+    """
+    # si plus d'arête, retourner ensemble vide
+    if not reste_arrete(G):
+        return set()
+
+    # calculer borne inférieure
+    borne_inf = calculer_borne_inf(G)
+
+    # élagage si la borne inf >= meilleure solution connue, on abandonne
+    if meilleure_sol is not None and borne_inf >= len(meilleure_sol):
+        return meilleure_sol
+
+    # calculer une solution réalisable avec algo_couplage
+    sol_realisable = algo_couplage(G)
+
+    # mettre à jour la meilleure solution
+    if meilleure_sol is None or len(sol_realisable) < len(meilleure_sol):
+        meilleure_sol = sol_realisable.copy()
+
+    # choisir une arête à brancher (prendre le sommet de degré max)
+    v = G.degresMax()
+    if v is None or len(G._E.get(v, [])) == 0:
+        return meilleure_sol
+
+    # prendre un voisin pour brancher
+    voisin = G._E[v][0]
+
+    # branche 1 on prend v dans la couverture
+    G1 = G.supprimeSommet(v)
+    res1 = algo_branchement_bornes(G1, meilleure_sol)
+    res1.add(v)
+
+    # màj meilleure solution
+    if len(res1) < len(meilleure_sol):
+        meilleure_sol = res1.copy()
+
+    # branche 2: on prend le voisin dans la couverture
+    G2 = G.supprimeSommet(voisin)
+    for voisin_v in G._E[v]: # amélioration, on prend voisins de v et on les supprime
+        G2 = G2.supprimeSommet(voisin_v)
+    res2 = algo_branchement_bornes(G2, meilleure_sol) #on résout le nouveau
+    res2.add(voisin)
+    for voisin_v in G._E[v]:
+        res2.add(voisin_v)
+
+    # retourner la meilleure des deux branches
+    if len(res1) < len(res2):
+        return res1
+    else:
+        return res2

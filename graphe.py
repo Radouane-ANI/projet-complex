@@ -160,47 +160,47 @@ def comparer_algos_naifs(Nmax, p, num_instances=10):
     """
     tailles = np.linspace(Nmax / 10, Nmax, 10, dtype=int)
 
-    temps_moyens = {'couplage': [], 'glouton': []}
-    qualite_moyenne = {'couplage': [], 'glouton': []}
+    temps_moyens = {'branchbound': [], 'branchbound amélioré': []}
+    qualite_moyenne = {'branchbound': [], 'branchbound amélioré': []}
 
     print(
         f"Début de la comparaison pour Nmax={Nmax}, p={p}, num_instances={num_instances}")
 
     for n in tailles:
         print(f"  Test pour n = {n}...")
-        temps_instance = {'couplage': [], 'glouton': []}
-        qualite_instance = {'couplage': [], 'glouton': []}
+        temps_instance = {'branchbound': [], 'branchbound amélioré': []}
+        qualite_instance = {'branchbound': [], 'branchbound amélioré': []}
 
         for _ in range(num_instances):
             G = Graphe.generation(n, p)
 
             # Test de algo_couplage
             start_time = time.time()
-            solution_couplage = algo_couplage(G)
+            solution_couplage = algo_branchement_bornes(G)
             end_time = time.time()
-            temps_instance['couplage'].append(end_time - start_time)
-            qualite_instance['couplage'].append(len(solution_couplage))
+            temps_instance['branchbound'].append(end_time - start_time)
+            qualite_instance['branchbound'].append(len(solution_couplage))
 
             # Test de algo_glouton
             start_time = time.time()
-            solution_glouton = algo_glouton(G)
+            solution_glouton = algo_branchement_bornes_upg(G)
             end_time = time.time()
-            temps_instance['glouton'].append(end_time - start_time)
-            qualite_instance['glouton'].append(len(solution_glouton))
+            temps_instance['branchbound amélioré'].append(end_time - start_time)
+            qualite_instance['branchbound amélioré'].append(len(solution_glouton))
 
-        temps_moyens['couplage'].append(np.mean(temps_instance['couplage']))
-        temps_moyens['glouton'].append(np.mean(temps_instance['glouton']))
-        qualite_moyenne['couplage'].append(
-            np.mean(qualite_instance['couplage']))
-        qualite_moyenne['glouton'].append(np.mean(qualite_instance['glouton']))
+        temps_moyens['branchbound'].append(np.mean(temps_instance['branchbound']))
+        temps_moyens['branchbound amélioré'].append(np.mean(temps_instance['branchbound amélioré']))
+        qualite_moyenne['branchbound'].append(
+            np.mean(qualite_instance['branchbound']))
+        qualite_moyenne['branchbound amélioré'].append(np.mean(qualite_instance['branchbound amélioré']))
 
     # --- Section de traçage des graphiques ---
 
     # 1. Graphique du temps de calcul (échelle linéaire)
     plt.figure(figsize=(12, 8))
     plt.subplot(2, 2, 1)
-    plt.plot(tailles, temps_moyens['couplage'], 'o-', label='Algo Couplage')
-    plt.plot(tailles, temps_moyens['glouton'], 's-', label='Algo Glouton')
+    plt.plot(tailles, temps_moyens['branchbound'], 'o-', label='Algo BranchBound')
+    plt.plot(tailles, temps_moyens['branchbound amélioré'], 's-', label='Algo branchbound amélioré')
     plt.xlabel("Taille du graphe (n)")
     plt.ylabel("Temps de calcul moyen (s)")
     plt.title("Temps de calcul (Échelle Linéaire)")
@@ -209,8 +209,8 @@ def comparer_algos_naifs(Nmax, p, num_instances=10):
 
     # 2. Graphique du temps de calcul (échelle Log-Log pour complexité polynomiale)
     plt.subplot(2, 2, 2)
-    plt.loglog(tailles, temps_moyens['couplage'], 'o-', label='Algo Couplage')
-    plt.loglog(tailles, temps_moyens['glouton'], 's-', label='Algo Glouton')
+    plt.loglog(tailles, temps_moyens['branchbound'], 'o-', label='Algo Couplage')
+    plt.loglog(tailles, temps_moyens['branchbound amélioré'], 's-', label='Algo Glouton')
     plt.xlabel("log(Taille du graphe)")
     plt.ylabel("log(Temps de calcul moyen)")
     plt.title("Temps de calcul (Échelle Log-Log)")
@@ -219,8 +219,8 @@ def comparer_algos_naifs(Nmax, p, num_instances=10):
 
     # 3. Graphique de la qualité de la solution
     plt.subplot(2, 2, 3)
-    plt.plot(tailles, qualite_moyenne['couplage'], 'o-', label='Algo Couplage')
-    plt.plot(tailles, qualite_moyenne['glouton'], 's-', label='Algo Glouton')
+    plt.plot(tailles, qualite_moyenne['branchbound'], 'o-', label='Algo Couplage')
+    plt.plot(tailles, qualite_moyenne['branchbound amélioré'], 's-', label='Algo Glouton')
     plt.xlabel("Taille du graphe (n)")
     plt.ylabel("Taille moyenne de la couverture")
     plt.title("Qualité des solutions")
@@ -343,6 +343,60 @@ def algo_branchement_bornes(G, meilleure_sol=None):
         return res2
 
 
+def algo_branchement_bornes_upg(G, meilleure_sol=None):
+    """
+    Algorithme de branchement avec élagage par bornes
+    """
+    # si plus d'arête, retourner ensemble vide
+    if not reste_arrete(G):
+        return set()
+    
+    # calculer borne inférieure
+    borne_inf = calculer_borne_inf(G)
+    
+    # élagage si la borne inf >= meilleure solution connue, on abandonne
+    if meilleure_sol is not None and borne_inf >= len(meilleure_sol):
+        return meilleure_sol
+    
+    # calculer une solution réalisable avec algo_couplage
+    sol_realisable = algo_couplage(G)
+    
+    # mettre à jour la meilleure solution
+    if meilleure_sol is None or len(sol_realisable) < len(meilleure_sol):
+        meilleure_sol = sol_realisable.copy()
+    
+    # choisir une arête à brancher (prendre le sommet de degré max)
+    v = G.degresMax()
+    if v is None or len(G._E.get(v, [])) == 0:
+        return meilleure_sol
+    
+    # prendre un voisin pour brancher
+    voisin = G._E[v][0]
+    
+    # branche 1 on prend v dans la couverture
+    G1 = G.supprimeSommet(v)
+    res1 = algo_branchement_bornes(G1, meilleure_sol)
+    res1.add(v)
+    
+    # màj meilleure solution
+    if len(res1) < len(meilleure_sol):
+        meilleure_sol = res1.copy()
+    
+    # branche 2: on prend le voisin dans la couverture
+    G2 = G.supprimeSommet(voisin)
+    for voisin_v in G._E[v]: # amélioration, on prend voisins de v et on les supprime
+        G2 = G2.supprimeSommet(voisin_v) 
+    res2 = algo_branchement_bornes(G2, meilleure_sol) #on résout le nouveau
+    res2.add(voisin)
+    for voisin_v in G._E[v]:
+        res2.add(voisin_v) 
+    
+    # retourner la meilleure des deux branches
+    if len(res1) < len(res2):
+        return res1
+    else:
+        return res2
+
 def couverture_valide(G, C):
     """Vérifie que C est bien une couverture de G"""
     for sommet in G._E:
@@ -353,7 +407,7 @@ def couverture_valide(G, C):
 
 
 if __name__ == '__main__':
-    N_MAX = 500
+    N_MAX = 30
     PROBABILITE_ARETE = 0.1
     NOMBRE_INSTANCES = 10
 
@@ -371,11 +425,11 @@ if __name__ == '__main__':
     print("Glouton:", algo_glouton(G)) """
     
 
-    """
-    # comparer_algos_naifs(N_MAX, PROBABILITE_ARETE, NOMBRE_INSTANCES)
+    
+    comparer_algos_naifs(N_MAX, PROBABILITE_ARETE, NOMBRE_INSTANCES)
     G = Graphe(fic="exempleinstance.txt")
     print(algo_branchement(G))
-    """
+ 
 
     """
     G = Graphe(fic="exempleinstance.txt")
@@ -396,9 +450,9 @@ if __name__ == '__main__':
     print("Graphe :", G)
     print(f"Borne inférieure calculée (b1, b2, b3, max) : {calculer_borne_inf(G)}")
     sol_bornes = algo_branchement_bornes(G)
-    sol_branch = algo_branchement(G)
-    print("solution branchement",sol_branch, "taille =",len(sol_branch))
-    print("Solution branchement avec bornes :", sol_bornes, "taille =", len(sol_bornes)) 
+    sol_branch = algo_branchement_bornes_upg(G)
+    print("solution branchement avec bornes",sol_branch, "taille =",len(sol_branch))
+    print("Solution branchement avec bornes amélioré :", sol_bornes, "taille =", len(sol_bornes)) 
     # j'ai pas essayé avec les plots de comparer_algos_naifs()
 
 
