@@ -149,77 +149,93 @@ def algo_glouton(G):
     return C
 
 
-def comparer_algos_naifs(Nmax, p, num_instances=10):
+def comparer_algos(algo1, nom_algo1, algo2, nom_algo2, Nmax, p, num_instances=10):
     """
     Compare le temps de calcul et la qualité des solutions pour deux algorithmes.
 
+    :param algo1: La première fonction d'algorithme à tester.
+    :param nom_algo1: Le nom de la première fonction pour les légendes.
+    :param algo2: La deuxième fonction d'algorithme à tester.
+    :param nom_algo2: Le nom de la deuxième fonction pour les légendes.
     :param Nmax: Taille maximale du graphe à tester.
     :param p: Probabilité de création d'une arête dans les graphes aléatoires.
     :param num_instances: Nombre d'instances à générer pour chaque taille de graphe.
     """
     tailles = np.linspace(Nmax / 10, Nmax, 10, dtype=int)
 
-    temps_moyens = {'couplage': [], 'glouton': []}
-    qualite_moyenne = {'couplage': [], 'glouton': []}
+    temps_moyens = {nom_algo1: [], nom_algo2: []}
+    qualite_moyenne = {nom_algo1: [], nom_algo2: []}
 
     print(
-        f"Début de la comparaison pour Nmax={Nmax}, p={p}, num_instances={num_instances}")
+        f"Début de la comparaison de '{nom_algo1}' vs '{nom_algo2}' pour Nmax={Nmax}, p={p}, num_instances={num_instances}")
 
     for n in tailles:
         print(f"  Test pour n = {n}...")
-        temps_instance = {'couplage': [], 'glouton': []}
-        qualite_instance = {'couplage': [], 'glouton': []}
+        temps_instance = {nom_algo1: [], nom_algo2: []}
+        qualite_instance = {nom_algo1: [], nom_algo2: []}
 
         for _ in range(num_instances):
             G = Graphe.generation(n, p)
 
-            # Test de algo_couplage
+            # Test de algo1
             start_time = time.time()
-            solution_couplage = algo_couplage(G)
+            solution_algo1 = algo1(G)
             end_time = time.time()
-            temps_instance['couplage'].append(end_time - start_time)
-            qualite_instance['couplage'].append(len(solution_couplage))
+            temps_instance[nom_algo1].append(end_time - start_time)
+            qualite_instance[nom_algo1].append(len(solution_algo1))
 
-            # Test de algo_glouton
+            # Test de algo2
             start_time = time.time()
-            solution_glouton = algo_glouton(G)
+            solution_algo2 = algo2(G)
             end_time = time.time()
-            temps_instance['glouton'].append(end_time - start_time)
-            qualite_instance['glouton'].append(len(solution_glouton))
+            temps_instance[nom_algo2].append(end_time - start_time)
+            qualite_instance[nom_algo2].append(len(solution_algo2))
 
-        temps_moyens['couplage'].append(np.mean(temps_instance['couplage']))
-        temps_moyens['glouton'].append(np.mean(temps_instance['glouton']))
-        qualite_moyenne['couplage'].append(
-            np.mean(qualite_instance['couplage']))
-        qualite_moyenne['glouton'].append(np.mean(qualite_instance['glouton']))
+        temps_moyens[nom_algo1].append(np.mean(temps_instance[nom_algo1]))
+        temps_moyens[nom_algo2].append(np.mean(temps_instance[nom_algo2]))
+        qualite_moyenne[nom_algo1].append(
+            np.mean(qualite_instance[nom_algo1]))
+        qualite_moyenne[nom_algo2].append(np.mean(qualite_instance[nom_algo2]))
 
     # --- Section de traçage des graphiques ---
 
-    # 1. Graphique du temps de calcul (échelle linéaire)
-    plt.figure(figsize=(12, 8))
+    label1 = f'Algo {nom_algo1.capitalize()}'
+    label2 = f'Algo {nom_algo2.capitalize()}'
+
+    # Augmentation de la taille pour un meilleur affichage des 4 plots
+    plt.figure(figsize=(14, 10))
+
+    # 1. Graphique du temps de calcul (Échelle linéaire) pour Algo 1
     plt.subplot(2, 2, 1)
-    plt.plot(tailles, temps_moyens['couplage'], 'o-', label='Algo Couplage')
-    plt.plot(tailles, temps_moyens['glouton'], 's-', label='Algo Glouton')
+    plt.plot(tailles, temps_moyens[nom_algo1],
+             'o-', label=label1, color='blue')
     plt.xlabel("Taille du graphe (n)")
     plt.ylabel("Temps de calcul moyen (s)")
-    plt.title("Temps de calcul (Échelle Linéaire)")
-    plt.legend()
+    plt.title(f"Temps de calcul - {nom_algo1.capitalize()} (Linéaire)")
     plt.grid(True)
 
-    # 2. Graphique du temps de calcul (échelle Log-Log pour complexité polynomiale)
+    # 2. Graphique du temps de calcul (Échelle linéaire) pour Algo 2
     plt.subplot(2, 2, 2)
-    plt.loglog(tailles, temps_moyens['couplage'], 'o-', label='Algo Couplage')
-    plt.loglog(tailles, temps_moyens['glouton'], 's-', label='Algo Glouton')
+    plt.plot(tailles, temps_moyens[nom_algo2], 's-', label=label2, color='red')
+    plt.xlabel("Taille du graphe (n)")
+    plt.ylabel("Temps de calcul moyen (s)")
+    plt.title(f"Temps de calcul - {nom_algo2.capitalize()} (Linéaire)")
+    plt.grid(True)
+
+    # 3. Graphique du temps de calcul (échelle Log-Log pour complexité polynomiale) - Décalé à la position 3
+    plt.subplot(2, 2, 3)
+    plt.loglog(tailles, temps_moyens[nom_algo1], 'o-', label=label1)
+    plt.loglog(tailles, temps_moyens[nom_algo2], 's-', label=label2)
     plt.xlabel("log(Taille du graphe)")
     plt.ylabel("log(Temps de calcul moyen)")
-    plt.title("Temps de calcul (Échelle Log-Log)")
+    plt.title("Temps de calcul (Échelle Log-Log - Comparaison)")
     plt.legend()
     plt.grid(True, which="both", ls="--")
 
-    # 3. Graphique de la qualité de la solution
-    plt.subplot(2, 2, 3)
-    plt.plot(tailles, qualite_moyenne['couplage'], 'o-', label='Algo Couplage')
-    plt.plot(tailles, qualite_moyenne['glouton'], 's-', label='Algo Glouton')
+    # 4. Graphique de la qualité de la solution - Décalé à la position 4
+    plt.subplot(2, 2, 4)
+    plt.plot(tailles, qualite_moyenne[nom_algo1], 'o-', label=label1)
+    plt.plot(tailles, qualite_moyenne[nom_algo2], 's-', label=label2)
     plt.xlabel("Taille du graphe (n)")
     plt.ylabel("Taille moyenne de la couverture")
     plt.title("Qualité des solutions")
@@ -251,6 +267,7 @@ if __name__ == '__main__':
     PROBABILITE_ARETE = 0.1
     NOMBRE_INSTANCES = 10
 
-    # comparer_algos_naifs(N_MAX, PROBABILITE_ARETE, NOMBRE_INSTANCES)
+    # comparer_algos(algo_couplage, 'Couplage', algo_glouton,
+    #                'Glouton', N_MAX, PROBABILITE_ARETE, NOMBRE_INSTANCES)
     G = Graphe(fic="exempleinstance.txt")
     print(algo_branchement(G))
