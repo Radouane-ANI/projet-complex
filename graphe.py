@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import copy
 import random
+import math
 
 
 class Graphe:
@@ -262,12 +263,211 @@ def algo_branchement(G):
     return C
 
 
+def calculer_couplage_max(G):
+    """Retourne un couplage maximal (ensemble d'arêtes disjointes)"""
+    couplage = []
+    sommets_utilises = set()
+
+    for i in G._E:
+        if i in sommets_utilises:
+            continue
+        for j in G._E[i]:  # tant que les sommets ne sont pas utilisés, ajouter aretes
+            if j not in sommets_utilises:
+                couplage.append((i, j))
+                sommets_utilises.add(i)
+                sommets_utilises.add(j)
+                break
+    return couplage
+
+
+def calculer_borne_inf(G):
+    """Calcule la borne inférieure max{b1, b2, b3}"""
+    n = len(G._V)
+
+    # compter le nombre d'aretes m
+    m = sum(len(voisins) for voisins in G._E.values()) // 2
+
+    if m == 0:
+        return 0
+
+    # b1 = ⌈m/delta⌉
+    delta = max(len(G._E.get(v, [])) for v in G._V) if G._V else 1
+    b1 = math.ceil(m / delta) if delta > 0 else 0
+
+    # b2 = |M| (taille du couplage maximal)
+    couplage = calculer_couplage_max(G)
+    b2 = len(couplage)
+
+    # b3 = (2n-1-sqrt((2n-1)²-8m))/2
+    discriminant = (2*n - 1)**2 - 8*m
+    if discriminant >= 0:
+        b3 = (2*n - 1 - math.sqrt(discriminant)) / 2
+        b3 = math.ceil(b3)
+    else:
+        b3 = 0
+
+    return max(b1, b2, b3)
+
+
+def algo_branchement_bornes(G, meilleure_sol=None):
+    """
+    Algorithme de branchement avec élagage par bornes
+    """
+    # si plus d'arête, retourner ensemble vide
+    if not reste_arrete(G):
+        return set()
+
+    # calculer borne inférieure
+    borne_inf = calculer_borne_inf(G)
+
+    # élagage si la borne inf >= meilleure solution connue, on abandonne
+    if meilleure_sol is not None and borne_inf >= len(meilleure_sol):
+        return meilleure_sol
+
+    # calculer une solution réalisable avec algo_couplage
+    sol_realisable = algo_couplage(G)
+
+    # mettre à jour la meilleure solution
+    if meilleure_sol is None or len(sol_realisable) < len(meilleure_sol):
+        meilleure_sol = sol_realisable.copy()
+
+    # choisir une arête à brancher (prendre le sommet de degré max)
+    v = G.degresMax()
+    if v is None or len(G._E.get(v, [])) == 0:
+        return meilleure_sol
+
+    # prendre un voisin pour brancher
+    voisin = G._E[v][0]
+
+    # branche 1 on prend v dans la couverture
+    G1 = G.supprimeSommet(v)
+    res1 = algo_branchement_bornes(G1, meilleure_sol)
+    res1.add(v)
+
+    # màj meilleure solution
+    if len(res1) < len(meilleure_sol):
+        meilleure_sol = res1.copy()
+
+    # branche 2: on prend le voisin dans la couverture
+    G2 = G.supprimeSommet(voisin)
+    res2 = algo_branchement_bornes(G2, meilleure_sol)
+    res2.add(voisin)
+
+    # retourner la meilleure des deux branches
+    if len(res1) < len(res2):
+        return res1
+    else:
+        return res2
+
+
+def algo_branchement_bornes_upg(G, meilleure_sol=None):
+    """
+    Algorithme de branchement avec élagage par bornes
+    """
+    # si plus d'arête, retourner ensemble vide
+    if not reste_arrete(G):
+        return set()
+
+    # calculer borne inférieure
+    borne_inf = calculer_borne_inf(G)
+
+    # élagage si la borne inf >= meilleure solution connue, on abandonne
+    if meilleure_sol is not None and borne_inf >= len(meilleure_sol):
+        return meilleure_sol
+
+    # calculer une solution réalisable avec algo_couplage
+    sol_realisable = algo_couplage(G)
+
+    # mettre à jour la meilleure solution
+    if meilleure_sol is None or len(sol_realisable) < len(meilleure_sol):
+        meilleure_sol = sol_realisable.copy()
+
+    # choisir une arête à brancher (prendre le sommet de degré max)
+    v = G.degresMax()
+    if v is None or len(G._E.get(v, [])) == 0:
+        return meilleure_sol
+
+    # prendre un voisin pour brancher
+    voisin = G._E[v][0]
+
+    # branche 1 on prend v dans la couverture
+    G1 = G.supprimeSommet(v)
+    res1 = algo_branchement_bornes(G1, meilleure_sol)
+    res1.add(v)
+
+    # màj meilleure solution
+    if len(res1) < len(meilleure_sol):
+        meilleure_sol = res1.copy()
+
+    # branche 2: on prend le voisin dans la couverture
+    G2 = G.supprimeSommet(voisin)
+    for voisin_v in G._E[v]:  # amélioration, on prend voisins de v et on les supprime
+        G2 = G2.supprimeSommet(voisin_v)
+    res2 = algo_branchement_bornes(G2, meilleure_sol)  # on résout le nouveau
+    res2.add(voisin)
+    for voisin_v in G._E[v]:
+        res2.add(voisin_v)
+
+    # retourner la meilleure des deux branches
+    if len(res1) < len(res2):
+        return res1
+    else:
+        return res2
+
+
+def couverture_valide(G, C):
+    """Vérifie que C est bien une couverture de G"""
+    for sommet in G._E:
+        for voisin in G._E[sommet]:
+            if sommet not in C and voisin not in C:
+                return False
+    return True
+
+
 if __name__ == '__main__':
-    N_MAX = 500
+    N_MAX = 30
     PROBABILITE_ARETE = 0.1
     NOMBRE_INSTANCES = 10
+
+    """  Test avec fichier couplage et glouton :
+    G = Graphe(fic="exempleinstance.txt")
+    print("Graphe chargé:", G)
+    print("Couplage:", algo_couplage(G))
+    print("Glouton:", algo_glouton(G)) """
+
+    """G = Graphe.generation(10, 0.3)
+    print("Graphe",G)
+    print("Couplage:", algo_couplage(G))
+    print("Glouton:", algo_glouton(G)) """
 
     # comparer_algos(algo_couplage, 'Couplage', algo_glouton,
     #                'Glouton', N_MAX, PROBABILITE_ARETE, NOMBRE_INSTANCES)
     G = Graphe(fic="exempleinstance.txt")
     print(algo_branchement(G))
+
+    """
+    G = Graphe(fic="exempleinstance.txt")
+    print("Graphe",G)
+    for s, d in zip(G._V, G.degresTousSommets()):
+        print(f"Sommet {s} : degré {d}")
+    sol = algo_glouton(G)
+    print("Glouton",sol)
+    sol_c = algo_couplage(G)
+    print("Couplage",sol_c)
+    sol_branch = algo_branchement(G)
+    print("Branchement",sol_branch)
+    print("Solution valide glouton ?", couverture_valide(G, sol))
+    print("Solution valide couplage ?", couverture_valide(G, sol_c))
+    print("Solution valide branchement ?", couverture_valide(G, sol_branch)) """
+
+    G = G = Graphe.generation(13, 0.5)
+    print("Graphe :", G)
+    print(
+        f"Borne inférieure calculée (b1, b2, b3, max) : {calculer_borne_inf(G)}")
+    sol_bornes = algo_branchement_bornes(G)
+    sol_branch = algo_branchement_bornes_upg(G)
+    print("solution branchement avec bornes",
+          sol_branch, "taille =", len(sol_branch))
+    print("Solution branchement avec bornes amélioré :",
+          sol_bornes, "taille =", len(sol_bornes))
+    # j'ai pas essayé avec les plots de comparer_algos_naifs()
