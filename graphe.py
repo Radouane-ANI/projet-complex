@@ -309,110 +309,114 @@ def calculer_borne_inf(G):
     return max(b1, b2, b3)
 
 
-def algo_branchement_bornes(G, meilleure_sol=None):
+def algo_branchement_bornes_4_2(G, C_actuel, meilleure_sol_ref):
     """
-    Algorithme de branchement avec élagage par bornes
+    Q4.2
+    :param G: Le graphe restant à couvrir.
+    :param C_actuel: L'ensemble des sommets déjà choisis dans la couverture.
+    :param meilleure_sol_ref: Une liste contenant la meilleure solution globale trouvée.
     """
-    # si plus d'arête, retourner ensemble vide
+    # On obtient une couverture sur le graphe restant G
+    couverture_locale_par_couplage = algo_couplage(G)
+
+    taille_solution_heuristique = len(
+        C_actuel) + len(couverture_locale_par_couplage)
+
+    # Si cette solutio est meilleure que la meilleure globale, on met à jour.
+    if taille_solution_heuristique < len(meilleure_sol_ref[0]):
+        # On doit construire la solution complète pour la sauvegarder
+        solution_complete_heuristique = C_actuel.copy().union(
+            couverture_locale_par_couplage)
+        meilleure_sol_ref[0] = solution_complete_heuristique
+
+    # CAS DE BASE : S'il n'y a plus d'arêtes, C_actuel est une couverture valide.
     if not reste_arrete(G):
-        return set()
+        if len(C_actuel) < len(meilleure_sol_ref[0]):
+            meilleure_sol_ref[0] = C_actuel.copy()
+        return
 
-    # calculer borne inférieure
+    # ÉLAGAGE : Si on ne peut pas faire mieux, on arrête cette branche.
     borne_inf = calculer_borne_inf(G)
+    if len(C_actuel) + borne_inf >= len(meilleure_sol_ref[0]):
+        return
 
-    # élagage si la borne inf >= meilleure solution connue, on abandonne
-    if meilleure_sol is not None and borne_inf >= len(meilleure_sol):
-        return meilleure_sol
+    # BRANCHEMENT : Choisir une arête {u, v} pour créer deux sous-problèmes.
+    u, v = -1, -1
+    for sommet, voisins in G._E.items():
+        if voisins:
+            u = sommet
+            v = voisins[0]
+            break
+    if u == -1:  # Au cas où il n'y aurait plus d'arêtes
+        return
 
-    # calculer une solution réalisable avec algo_couplage
-    sol_realisable = algo_couplage(G)
+    # BRANCHE 1 : On ajoute 'u' à la couverture.
+    G1 = G.supprimeSommet(u)
+    C_actuel.add(u)
+    algo_branchement_bornes_4_2(G1, C_actuel, meilleure_sol_ref)
+    C_actuel.remove(u)
 
-    # mettre à jour la meilleure solution
-    if meilleure_sol is None or len(sol_realisable) < len(meilleure_sol):
-        meilleure_sol = sol_realisable.copy()
-
-    # choisir une arête à brancher (prendre le sommet de degré max)
-    v = G.degresMax()
-    if v is None or len(G._E.get(v, [])) == 0:
-        return meilleure_sol
-
-    # prendre un voisin pour brancher
-    voisin = G._E[v][0]
-
-    # branche 1 on prend v dans la couverture
-    G1 = G.supprimeSommet(v)
-    res1 = algo_branchement_bornes(G1, meilleure_sol)
-    res1.add(v)
-
-    # màj meilleure solution
-    if len(res1) < len(meilleure_sol):
-        meilleure_sol = res1.copy()
-
-    # branche 2: on prend le voisin dans la couverture
-    G2 = G.supprimeSommet(voisin)
-    res2 = algo_branchement_bornes(G2, meilleure_sol)
-    res2.add(voisin)
-
-    # retourner la meilleure des deux branches
-    if len(res1) < len(res2):
-        return res1
-    else:
-        return res2
+    # BRANCHE 2 : On ajoute 'v' à la couverture.
+    G2 = G.supprimeSommet(v)
+    C_actuel.add(v)
+    algo_branchement_bornes_4_2(G2, C_actuel, meilleure_sol_ref)
+    C_actuel.remove(v)
 
 
-def algo_branchement_bornes_upg(G, meilleure_sol=None):
-    """
-    Algorithme de branchement avec élagage par bornes
-    """
-    # si plus d'arête, retourner ensemble vide
+def algo_branchement_bornes(G):
+    '''
+    Fonction "wrapper" pour lancer l'algorithme de la Q4.2
+    '''
+    solution_initiale = set(algo_couplage(G))
+    meilleure_sol_ref = [solution_initiale]
+
+    algo_branchement_bornes_4_2(G, set(), meilleure_sol_ref)
+
+    return meilleure_sol_ref[0]
+
+
+def algo_branchement_bornes_upg(G):
+    '''Fonction wrapper'''
+    solution_initiale = set(algo_glouton(G))
+    meilleure_sol_ref = [solution_initiale]
+    algo_branchement_bornes_upg_recursive(G, set(), meilleure_sol_ref)
+    return meilleure_sol_ref[0]
+
+
+def algo_branchement_bornes_upg_recursive(G, C_actuel, meilleure_sol_ref):
     if not reste_arrete(G):
-        return set()
+        if len(C_actuel) < len(meilleure_sol_ref[0]):
+            meilleure_sol_ref[0] = C_actuel.copy()
+        return
 
-    # calculer borne inférieure
     borne_inf = calculer_borne_inf(G)
+    if len(C_actuel) + borne_inf >= len(meilleure_sol_ref[0]):
+        return
 
-    # élagage si la borne inf >= meilleure solution connue, on abandonne
-    if meilleure_sol is not None and borne_inf >= len(meilleure_sol):
-        return meilleure_sol
+    # BRANCHEMENT AMÉLIORÉ: Choisir u de degré max
+    u = G.degresMax()
 
-    # calculer une solution réalisable avec algo_couplage
-    sol_realisable = algo_couplage(G)
+    # BRANCHE 1 : On AJOUTE 'u' à la couverture.
+    # Le sous-problème est de couvrir le graphe sans u.
+    G1 = G.supprimeSommet(u)
+    C_actuel.add(u)
+    algo_branchement_bornes_upg_recursive(G1, C_actuel, meilleure_sol_ref)
+    C_actuel.remove(u)
 
-    # mettre à jour la meilleure solution
-    if meilleure_sol is None or len(sol_realisable) < len(meilleure_sol):
-        meilleure_sol = sol_realisable.copy()
+    # BRANCHE 2 : On N'AJOUTE PAS 'u' à la couverture.
+    # On doit donc obligatoirement ajouter TOUS les voisins de u.
+    voisins_de_u = set(G._E.get(u, []))
+    if not voisins_de_u:  # Si u n'a pas de voisins, on a fini pour ce sommet
+        return
 
-    # choisir une arête à brancher (prendre le sommet de degré max)
-    v = G.degresMax()
-    if v is None or len(G._E.get(v, [])) == 0:
-        return meilleure_sol
+    sommets_a_supprimer = voisins_de_u | {u}
+    G2 = G.supprimerEnsemble(sommets_a_supprimer)
 
-    # prendre un voisin pour brancher
-    voisin = G._E[v][0]
+    # Le nouvel ensemble de couverture inclut les voisins de u
+    nouvelle_C_actuel = C_actuel | voisins_de_u
 
-    # branche 1 on prend v dans la couverture
-    G1 = G.supprimeSommet(v)
-    res1 = algo_branchement_bornes(G1, meilleure_sol)
-    res1.add(v)
-
-    # màj meilleure solution
-    if len(res1) < len(meilleure_sol):
-        meilleure_sol = res1.copy()
-
-    # branche 2: on prend le voisin dans la couverture
-    G2 = G.supprimeSommet(voisin)
-    for voisin_v in G._E[v]:  # amélioration, on prend voisins de v et on les supprime
-        G2 = G2.supprimeSommet(voisin_v)
-    res2 = algo_branchement_bornes(G2, meilleure_sol)  # on résout le nouveau
-    res2.add(voisin)
-    for voisin_v in G._E[v]:
-        res2.add(voisin_v)
-
-    # retourner la meilleure des deux branches
-    if len(res1) < len(res2):
-        return res1
-    else:
-        return res2
+    algo_branchement_bornes_upg_recursive(
+        G2, nouvelle_C_actuel, meilleure_sol_ref)
 
 
 def couverture_valide(G, C):
@@ -440,8 +444,8 @@ if __name__ == '__main__':
     print("Couplage:", algo_couplage(G))
     print("Glouton:", algo_glouton(G)) """
 
-    # comparer_algos(algo_couplage, 'Couplage', algo_glouton,
-    #                'Glouton', N_MAX, PROBABILITE_ARETE, NOMBRE_INSTANCES)
+    comparer_algos(algo_branchement, 'br', algo_branchement_bornes,
+                   'brb', 20, PROBABILITE_ARETE, NOMBRE_INSTANCES)
     G = Graphe(fic="exempleinstance.txt")
     print(algo_branchement(G))
 
